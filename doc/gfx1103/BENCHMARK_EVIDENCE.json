@@ -1,0 +1,279 @@
+{
+  "llama.cpp": {
+    "rows": [
+      {
+        "run": "1-off",
+        "case": "linux",
+        "mode": "off",
+        "generated_tokens": 256,
+        "timed_tokens": 255,
+        "prompt_tokens": 80,
+        "decode_s": 61.788278,
+        "rate": 4.126996385948804
+      },
+      {
+        "run": "1-off",
+        "case": "python",
+        "mode": "off",
+        "generated_tokens": 256,
+        "timed_tokens": 255,
+        "prompt_tokens": 91,
+        "decode_s": 61.954876,
+        "rate": 4.115898803509832
+      },
+      {
+        "run": "2-on",
+        "case": "linux",
+        "mode": "on",
+        "generated_tokens": 256,
+        "timed_tokens": 255,
+        "prompt_tokens": 80,
+        "decode_s": 37.404828,
+        "rate": 6.8173017664992335
+      },
+      {
+        "run": "2-on",
+        "case": "python",
+        "mode": "on",
+        "generated_tokens": 256,
+        "timed_tokens": 255,
+        "prompt_tokens": 91,
+        "decode_s": 28.253713,
+        "rate": 9.025362436434461
+      },
+      {
+        "run": "3-on",
+        "case": "linux",
+        "mode": "on",
+        "generated_tokens": 256,
+        "timed_tokens": 255,
+        "prompt_tokens": 80,
+        "decode_s": 37.40007,
+        "rate": 6.818169056902835
+      },
+      {
+        "run": "3-on",
+        "case": "python",
+        "mode": "on",
+        "generated_tokens": 256,
+        "timed_tokens": 255,
+        "prompt_tokens": 91,
+        "decode_s": 28.261468,
+        "rate": 9.022885859998496
+      },
+      {
+        "run": "4-off",
+        "case": "linux",
+        "mode": "off",
+        "generated_tokens": 256,
+        "timed_tokens": 255,
+        "prompt_tokens": 80,
+        "decode_s": 61.862967,
+        "rate": 4.122013740466085
+      },
+      {
+        "run": "4-off",
+        "case": "python",
+        "mode": "off",
+        "generated_tokens": 256,
+        "timed_tokens": 255,
+        "prompt_tokens": 91,
+        "decode_s": 61.978586,
+        "rate": 4.11432426031791
+      }
+    ],
+    "pooled_rates": {
+      "off": 4.119802116856919,
+      "on": 7.767281346213629
+    }
+  },
+  "exllamav3": {
+    "rows": [
+      {
+        "run": "1-off",
+        "case": "linux",
+        "mode": "off",
+        "generated_tokens": 256,
+        "timed_tokens": 255,
+        "prompt_tokens": 80,
+        "decode_s": 43.84086149200084,
+        "rate": 5.816491540580858
+      },
+      {
+        "run": "1-off",
+        "case": "python",
+        "mode": "off",
+        "generated_tokens": 256,
+        "timed_tokens": 255,
+        "prompt_tokens": 91,
+        "decode_s": 43.85923521500081,
+        "rate": 5.814054867805457
+      },
+      {
+        "run": "2-on",
+        "case": "linux",
+        "mode": "on",
+        "generated_tokens": 256,
+        "timed_tokens": 255,
+        "prompt_tokens": 80,
+        "decode_s": 26.769478948997858,
+        "rate": 9.525773754723986
+      },
+      {
+        "run": "2-on",
+        "case": "python",
+        "mode": "on",
+        "generated_tokens": 256,
+        "timed_tokens": 255,
+        "prompt_tokens": 91,
+        "decode_s": 21.290163131001464,
+        "rate": 11.977362429350494
+      },
+      {
+        "run": "3-on",
+        "case": "linux",
+        "mode": "on",
+        "generated_tokens": 256,
+        "timed_tokens": 255,
+        "prompt_tokens": 80,
+        "decode_s": 26.635574140000244,
+        "rate": 9.573662600989373
+      },
+      {
+        "run": "3-on",
+        "case": "python",
+        "mode": "on",
+        "generated_tokens": 256,
+        "timed_tokens": 255,
+        "prompt_tokens": 91,
+        "decode_s": 20.506074835997424,
+        "rate": 12.435339383057347
+      },
+      {
+        "run": "4-off",
+        "case": "linux",
+        "mode": "off",
+        "generated_tokens": 256,
+        "timed_tokens": 255,
+        "prompt_tokens": 80,
+        "decode_s": 43.944331640999735,
+        "rate": 5.8027961850280345
+      },
+      {
+        "run": "4-off",
+        "case": "python",
+        "mode": "off",
+        "generated_tokens": 256,
+        "timed_tokens": 255,
+        "prompt_tokens": 91,
+        "decode_s": 44.0335016099998,
+        "rate": 5.791045242290944
+      }
+    ],
+    "pooled_rates": {
+      "off": 5.806079342145302,
+      "on": 10.714140414335771
+    }
+  },
+  "gains_pct": {
+    "exl3_vs_llama_off": 40.93102477880366,
+    "exl3_vs_llama_on": 37.9393887870261,
+    "exl3_mtp": 84.5331381637127
+  },
+  "final_profiles": {
+    "rows": [
+      {
+        "run": "opt-final-a1",
+        "profile": "balanced",
+        "case": "linux",
+        "timed_tokens": 255,
+        "decode_s": 26.917253506002453,
+        "rate": 9.473477669002742
+      },
+      {
+        "run": "opt-final-a1",
+        "profile": "balanced",
+        "case": "python",
+        "timed_tokens": 255,
+        "decode_s": 20.664490691000537,
+        "rate": 12.340008946412285
+      },
+      {
+        "run": "opt-final-b1",
+        "profile": "code",
+        "case": "linux",
+        "timed_tokens": 255,
+        "decode_s": 27.904082312001265,
+        "rate": 9.138447813792718
+      },
+      {
+        "run": "opt-final-b1",
+        "profile": "code",
+        "case": "python",
+        "timed_tokens": 255,
+        "decode_s": 18.46466410299763,
+        "rate": 13.810161862549249
+      },
+      {
+        "run": "opt-final-b2",
+        "profile": "code",
+        "case": "linux",
+        "timed_tokens": 255,
+        "decode_s": 27.82499935300075,
+        "rate": 9.16442069827038
+      },
+      {
+        "run": "opt-final-b2",
+        "profile": "code",
+        "case": "python",
+        "timed_tokens": 255,
+        "decode_s": 18.61347348700292,
+        "rate": 13.699753577861584
+      },
+      {
+        "run": "opt-final-a2",
+        "profile": "balanced",
+        "case": "linux",
+        "timed_tokens": 255,
+        "decode_s": 26.60332320499947,
+        "rate": 9.585268653657478
+      },
+      {
+        "run": "opt-final-a2",
+        "profile": "balanced",
+        "case": "python",
+        "timed_tokens": 255,
+        "decode_s": 20.645680681998783,
+        "rate": 12.351251766784205
+      }
+    ],
+    "pooled_rates": {
+      "balanced": {
+        "linux": 9.52904530072379,
+        "python": 12.345627796967706,
+        "overall": 10.756004994250201
+      },
+      "code": {
+        "linux": 9.151415827479553,
+        "python": 13.754736163920482,
+        "overall": 10.990524316835613
+      }
+    }
+  },
+  "variants": {
+    "tested": 34,
+    "numerical_gate_passed": 29,
+    "excluded": [
+      "without-abl_fuse",
+      "blocks-72",
+      "blocks-96",
+      "kv-q8",
+      "prefill-64x64-w4"
+    ]
+  },
+  "gpu_trace": {
+    "kernel_events": 4726,
+    "native_exl3_rdna3_events": 1860,
+    "gpu_memcpy_events": 5
+  }
+}

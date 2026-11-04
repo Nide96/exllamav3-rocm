@@ -1,10 +1,10 @@
 # [Compatibility Report] ExLlamaV3 ROCm running on Radeon 780M (gfx1103) with Qwen3.8-27B EXL3
 
-Supporting files: [benchmark evidence](BENCHMARK_EVIDENCE.json) and [reproduction helper](reproduce_gfx1103.py). The separate [host build fix](https://github.com/Nide96/exllamav3-rocm/commit/c111c2f5c02e8cfa30ca9b9de31250c044ee992b) is published on `fix/rocm-clang22-gcc16-format`; use that patched checkout for reproduction. This documentation branch preserves the measured upstream source.
+Supporting files: [benchmark evidence](BENCHMARK_EVIDENCE.json) and [reproduction helper](reproduce_gfx1103.py), with the dated [DFlash2 validation](DFLASH2_VALIDATION.md). The separate [host build fix](https://github.com/Nide96/exllamav3-rocm/commit/c111c2f5c02e8cfa30ca9b9de31250c044ee992b) is published on `fix/rocm-clang22-gcc16-format`; use that patched checkout for reproduction. This documentation branch preserves the measured upstream source.
 
 Text-only generation, native EXL3 RDNA3 kernels and integrated MTP worked on a Radeon 780M with the configuration below. This reports one checkpoint and a bounded set of workloads. Thank you to phoenixhaxor and the other contributors for the ROCm port and kernels: the work reported here is build diagnosis, gfx1103 validation and measurement of existing options, rather than development of those kernels.
 
-Tested repository: [phoenixhaxor/exllamav3-rocm at 360c902](https://github.com/phoenixhaxor/exllamav3-rocm/tree/360c9025188810a0ac9d434c837dc3cb6b8e39cd). Measurements and validation were recorded on 2026-11-03. The host build workaround is proposed separately; this report does not request making every runtime setting a project-wide default.
+Tested repository: [phoenixhaxor/exllamav3-rocm at 360c902](https://github.com/phoenixhaxor/exllamav3-rocm/tree/360c9025188810a0ac9d434c837dc3cb6b8e39cd). The historical measurements and validation below were recorded on 2026-11-03. A separate DFlash2 follow-up was recorded on 2026-11-04 and is identified explicitly. The host build workaround is proposed separately; this report does not request making every runtime setting a project-wide default.
 
 ## Environment
 
@@ -116,6 +116,22 @@ A later, separate ABBA comparison confirmed fixed MTP 2 versus fixed MTP 3:
 
 These figures are from the later profile comparison, not replacements for the initial 10.714 tok/s measurement. MTP 2 remains the general profile; MTP 3 is an option for this coding workload. Both retain fixed drafting, FP16 KV, eight threads, `EXL3_RDNA3_TARGET_BLOCKS=36`, `EXL3_RDNA3_ATTN_SPLIT_MULT=16`, the GDN/graph settings above, and the fork's existing enabled fusions, MGEMM, presampling and rewind cache.
 
+## DFlash2 follow-up — 2026-11-04
+
+Native DFlash2 was validated on this gfx1103 device with the same Heretic target and a separate 5.0 bpw draft. This supersedes the earlier statement that DFlash support had not been tested, specifically for the DFlash2 paths and short prompts below. See [DFLASH2_VALIDATION.md](DFLASH2_VALIDATION.md) for checkpoint revisions, protocol, correctness, top-k failure analysis and reproduction.
+
+| Configuration | Linux tok/s | Python tok/s | Pooled tok/s | Pooled gain vs fresh MTP 2 |
+|---|---:|---:|---:|---:|
+| Fresh MTP 2 | 9.602 | 12.560 | 10.884 | baseline |
+| DFlash2, 3 draft tokens | 10.251 | 14.721 | 12.086 | +11.05% |
+| DFlash2, 7 draft tokens | 9.171 | 17.297 | 11.987 | +10.14% |
+
+Two process repetitions per configuration used the same short Linux/Python prompts, 256 generated tokens, fixed drafting and FP16 caches in an ABCCBA sequence. DFlash2 at 3 tokens gained +6.76% on Linux and +17.20% on Python; at 7 tokens it changed Linux by −4.48% and Python by +37.71%. These gains use the fresh November 4 MTP 2 controls, not the historical MTP 3 or llama.cpp measurements above. The approximately 0.83% pooled difference between the DFlash2 windows is insufficient to establish a general winner with two repetitions.
+
+All eight DFlash2 output-ID sequences matched the no-speculation reference exactly. The two MTP Python sequences also matched, but both MTP Linux sequences first diverged at output index 79 (zero-based); the cause was not isolated. Twelve separate first-token logit checks passed. The original strict top-k index test still failed; follow-up score/rank checks passed and reproduced index-set differences were confined to exactly tied cutoff scores. This is bounded evidence, not a declaration that all upstream tests passed.
+
+The separate GPU trace confirms 132 native DFlash2 kernel events. Across 383 sampled telemetry records, GPU maximum was 78.0 °C and CPU maximum 78.375 °C (78.4 °C rounded); the safety cutoff remained 96 °C. No additional GPU benchmark was run for this documentation update. All pre-existing measurements and JSON sections are preserved; the new JSON section is `dflash2_validation_2026_11_04`.
+
 ## Numerical, GPU and optimization evidence
 
 1. **Build and target:** the historical full extension build exited 0, loaded the compiled shared object and produced native `hipv4-amdgcn-amd-amdhsa--gfx1103` code. This establishes the target without architecture spoofing.
@@ -145,7 +161,7 @@ Local evidence retained by the reporter includes full build logs, original per-r
 
 ## Limitations and maintainer feedback requested
 
-This does not establish equal quality between EXL3 3.5 bpw and GGUF Q4_K_XL; long-context performance or correctness; vision, MoE or DFlash support; all project compute paths; or performance comparable to a Radeon RX 7900 XTX. Reserving 16K cache is not a 16K prompt test. Fixed 256-token continuations are not complete-answer quality evaluations. This report covers a single sequence on one 780M and one checkpoint.
+This does not establish equal quality between EXL3 3.5 bpw and GGUF Q4_K_XL; long-context performance or correctness; vision, MoE, DFlash v1 or other untested draft checkpoints; all project compute paths; or performance comparable to a Radeon RX 7900 XTX. Reserving 16K cache is not a 16K prompt test. Fixed 256-token continuations are not complete-answer quality evaluations. This report covers a single sequence on one 780M and one target checkpoint. The dated DFlash2 follow-up establishes only its explicitly tested native paths and short-prompt greedy continuations.
 
 No gfx1100 hardware was available. A narrow gfx1100 compile probe in the build-fix audit must not be interpreted as hardware testing. The system Tensile-path workaround also needs revalidation when changing the wheel or ROCm version.
 

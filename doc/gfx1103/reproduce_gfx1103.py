@@ -5,8 +5,16 @@ resource.setrlimit(resource.RLIMIT_CORE,(0,0))
 
 ap=argparse.ArgumentParser(description="Short-prompt gfx1103 reproduction; no service or system changes")
 ap.add_argument('--repo',required=True);ap.add_argument('--model',required=True);ap.add_argument('--output',required=True)
-ap.add_argument('--mode',choices=['off','on'],required=True);ap.add_argument('--draft-tokens',type=int,choices=[2,3],default=2)
+ap.add_argument('--mode',choices=['off','on','dflash'],required=True)
+ap.add_argument('--draft',help='Separate native DFlash2 checkpoint directory')
+ap.add_argument('--draft-tokens',type=int,choices=[2,3,7])
+ap.add_argument('--validation-pass',action='store_true',help='Save separate first-token logits before each timed request (Nov 4 protocol)')
 a=ap.parse_args()
+if a.mode=='dflash' and not a.draft: ap.error('--draft is required with --mode dflash')
+if a.mode!='dflash' and a.draft: ap.error('--draft is only used with --mode dflash')
+if a.draft_tokens is None: a.draft_tokens=7 if a.mode=='dflash' else 2
+if a.mode=='on' and a.draft_tokens not in (2,3): ap.error('Published MTP profiles use 2 or 3 draft tokens')
+if a.mode=='dflash' and a.draft_tokens not in (3,7): ap.error('Published DFlash2 profiles use 3 or 7 draft tokens')
 REPO=Path(a.repo).resolve(); MODEL=str(Path(a.model).resolve()); OUT=Path(a.output).resolve()
 OUT.mkdir(parents=True,exist_ok=False)
 sys.path.insert(0,str(REPO))
@@ -16,6 +24,9 @@ a.smoke=False; a.profile_smoke=False; a.preset_file=None
 ENV={'EXL3_RDNA3_GEMM': '1', 'EXL3_RDNA3_ATTN': '1', 'EXL3_HIP_MGEMM': '1', 'EXL3_FUSE_ACT': '1', 'EXL3_FUSE_GNORM': '1', 'EXL3_GDN_REG': '1', 'EXL3_FUSE_NORM_HAD': '1', 'EXL3_RESID_DEFER': '1', 'EXL3_ABL_FUSE': '1', 'EXL3_PRESAMPLE': '1', 'EXL3_REWIND_CACHE': '1', 'EXL3_ACT_EPI': '1', 'EXL3_ABLATION': '1', 'EXL3_GDN_MK': '0', 'EXL3_NOGRAPH': 'mlp,gdn', 'EXL3_RDNA3_TARGET_BLOCKS': '36', 'EXL3_RDNA3_ATTN_SPLIT_MULT': '16'}
 ENV['ROCBLAS_TENSILE_LIBPATH']='/opt/rocm/lib/rocblas/library'
 ENV['PYTORCH_ROCM_ARCH']='gfx1103'
+ENV['EXL3_ADAPT_WINDOW']='0'
+ENV['HIP_VISIBLE_DEVICES']='0'
+ENV['OMP_NUM_THREADS']='8'
 if os.environ.get('HSA_OVERRIDE_GFX_VERSION'):
     raise SystemExit('Use a clean native gfx1103 environment without HSA_OVERRIDE_GFX_VERSION')
 os.environ.update(ENV)
@@ -64,7 +75,10 @@ def serial(value):
 status('config')
 config=Config.from_directory(MODEL);model=Model.from_config(config)
 draft=Model.from_config(config,component='mtp') if a.mode=='on' else None
-# A draft window of two requires corresponding recurrent history for rewind.
+if a.mode=='dflash':
+    draft=Model.from_config(Config.from_directory(str(Path(a.draft).resolve())))
+    assert type(draft).__name__=='DFlash2Model','Expected native DFlash2 model'
+# Preserve the model default recurrent history, including seven for DFlash2.
 history=max(draft.caps.get('default_draft_size',4) if draft else 0,settings.get('ndt',2) if draft else 0)
 kv=settings.get('kv_bits',0)
 cache_kw=dict(layer_type=CacheLayer_quant,k_bits=kv,v_bits=kv) if kv else {}
@@ -84,25 +98,30 @@ metadata={'torch':torch.__version__,'hip':torch.version.hip,'gpu':prop.name,'arc
 draft_cache=None
 if draft:
     draft_cache=Cache(draft,max_num_tokens=16384,max_batch_size=1,**cache_kw)
-    status('load-mtp');draft.load(device='cuda:0',progressbar=False,max_chunk_size=512);torch.cuda.synchronize()
+    status('load-draft');draft.load(device='cuda:0',progressbar=False,max_chunk_size=512);torch.cuda.synchronize()
 metadata['gpu_allocated_bytes']=torch.cuda.memory_allocated()
+metadata['draft_class']=type(draft).__name__ if draft else None
+metadata['draft_path']=str(Path(a.draft).resolve()) if a.draft else None
+metadata['validation_pass']=a.validation_pass
 (OUT/'metadata.json').write_text(json.dumps(metadata,indent=2))
 (OUT/'maps.txt').write_text(Path('/proc/self/maps').read_text())
 tokenizer=Tokenizer.from_config(config)
 
-def run(case,prompt,n):
+def run(case,prompt,n,validate=False):
     # Fresh page table and recurrent prefix cache for every request, outside the timed region.
     generator=Generator(model=model,cache=cache,tokenizer=tokenizer,max_batch_size=1,
        max_chunk_size=512,draft_model=draft,draft_cache=draft_cache,
        num_draft_tokens=settings.get('ndt',2) if draft else None,dynamic_draft_tokens=settings.get('dynamic',False),recurrent_cache_size=0)
     ids=tokenizer.encode(prompt,encode_special_tokens=True)
     job=Job(input_ids=ids,max_new_tokens=n,sampler=ComboSampler(temperature=0,top_p=1,top_k=1),
-            seed=1234,stop_conditions=[])
+            seed=1234,stop_conditions=[],return_logits=validate)
     torch.cuda.synchronize();status(case,prompt_tokens=ids.shape[-1],tokens=n)
-    first=None;last=None;pieces=[];tokens=[];started=time.monotonic();start_wall=time.time()
+    first=None;last=None;pieces=[];tokens=[];first_logits=None;started=time.monotonic();start_wall=time.time()
     generator.enqueue(job)
     while generator.num_remaining_jobs():
         for r in generator.iterate():
+            if validate and first_logits is None and r.get('logits') is not None:
+                first_logits=r['logits'].reshape(-1,r['logits'].shape[-1])[0].float().cpu().numpy()
             if r.get('token_ids') is not None and r['token_ids'].numel():
                 if first is None:first=time.monotonic()
                 tokens.extend(r['token_ids'].reshape(-1).tolist())
@@ -110,7 +129,7 @@ def run(case,prompt,n):
             if r.get('eos'):last=r
     torch.cuda.synchronize();ended=time.monotonic()
     assert last is not None,'No final event'
-    produced=last['new_tokens'];assert produced==n,(produced,n)
+    produced=last['new_tokens'];assert produced==len(tokens)==n,(produced,len(tokens),n)
     assert last.get('cached_tokens',0)==0,'Unexpected prompt-cache reuse'
     row={'mode':a.mode,'case':case,'prompt':prompt,'input_ids':ids.tolist(),'output_ids':tokens,
          'prompt_tokens':ids.shape[-1],'new_tokens':produced,'start_time':start_wall,'end_time':time.time(),
@@ -120,6 +139,10 @@ def run(case,prompt,n):
          'text':''.join(pieces),'last_event':serial(last)}
     (OUT/f'{case}.json').write_text(json.dumps(row,ensure_ascii=False,indent=2))
     (OUT/f'{case}.txt').write_text(row['text'])
+    if validate:
+        import numpy as np
+        assert first_logits is not None and not np.isnan(first_logits).any() and not np.isposinf(first_logits).any()
+        np.save(OUT/f'{case}-logits.npy',first_logits,allow_pickle=False)
     status(case+'-done',new_tokens=produced,decode_tokens_per_second=row['decode_tokens_per_second'],
            accepted=last.get('accepted_draft_tokens'),rejected=last.get('rejected_draft_tokens'))
     generator.filter_pool.shutdown(wait=True)
@@ -141,5 +164,6 @@ else:
 if not a.smoke:
     prompts={'linux': '<|im_start|>user\nExplique en français à un débutant comment Linux utilise la mémoire vive : mémoire des programmes, cache disque, mémoire disponible et swap. Donne des exemples concrets et explique pourquoi une RAM presque pleine ne signifie pas forcément un problème. Termine par les précautions utiles avant de fermer un programme. Développe ta réponse en plusieurs paragraphes.<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n', 'python': '<|im_start|>user\nÉcris un script Python 3 complet qui lit un fichier CSV contenant les colonnes date, categorie et montant, valide les lignes et affiche le total par catégorie. Utilise uniquement la bibliothèque standard, Decimal pour les montants et argparse pour le chemin du fichier. Gère les fichiers absents et les lignes invalides. Fournis uniquement le code, avec des commentaires en français.<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n'}
     for case,prompt in prompts.items():
+        if a.validation_pass: run('validate-'+case,prompt,1,validate=True)
         run(case,prompt,256)
 status('complete')
